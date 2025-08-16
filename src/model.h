@@ -21,6 +21,7 @@ public:
   enum PlayerColor { RED=0, GREEN=1, YELLOW=2, BLUE=3}; // order of play on the board
   PlayerType type;
   PlayerColor color; // used as an id field
+  const std::array<int, 4>& getJailPositions() const;
   // just used to satisfy defaultConstructible in 0 length
   // std::vector::constructor--(4)
   Player(PlayerType type = ROBOT, PlayerColor color = RED)
@@ -29,6 +30,7 @@ public:
   friend std::ostream& operator<<(std::ostream& os, const Player& p);
 };
 
+Color toPhysicalColor(const Player::PlayerColor& c);
 std::ostream& operator<<(std::ostream& os, const Player::PlayerColor& c);
 std::ostream& operator<<(std::ostream& os, const Player::PlayerType& t);
 
@@ -41,9 +43,21 @@ public:
   int pos;
   static int getNext(int pos, const Player::PlayerColor &color);
   BoardPosition(int position = 0);
+  constexpr bool  isInitialPosition() const;
   static int defaultPosition(const Player::PlayerColor &color);
+  static std::pair<int, int> toXYOffset(int pos);
+  std::pair<int, int> toXYOffset() const;
+  static constexpr bool isFinalPosition(int position);
+  constexpr bool isFinalPosition() const;
+  static BoardPosition fromScreenFloats(float x, float y);
   friend std::ostream& operator<<(std::ostream& os, const BoardPosition& p);
+
+private:
+  static int toPositionId(int x, int y); // from x, y offsets
+  static BoardPosition toPosition(int x, int y); // from x, y offsets
 };
+
+constexpr bool operator==(const BoardPosition& a, const BoardPosition& b);
 
 class Piece {
   /**
@@ -55,14 +69,13 @@ private:
 
 public:
   BoardPosition pos;
-  Player::PlayerColor getColor() const{return _player.color;};
   bool canAdvance(int diceValue) const;
   void advance(int diceValue);
+  Player::PlayerColor getColor() const{return _player.color;};
   /**
    * @brief TODO: set position later depending on other similar colored pieces
    * @param p
    */
-
   // just used to satisfy defaultConstructible in 0 length
   // std::vector::constructor--(4)
   Piece(const Player &player = defaultPlayer, 
@@ -103,6 +116,7 @@ private:
   int currentPlayer;
   bool currentPlayerPlayed;
   bool currentPlayerRolled;
+  bool canAdvance;
   std::vector<Piece> hightLightedPieces;
   void drawPieces();
   void setUpPieces();

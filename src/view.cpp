@@ -227,7 +227,7 @@ static char colorToChar(const Color &c) {
 void View::highLightPosition(int x, int y, const Color &c, int width,
                              int height) {
   const Color cTransparent{c.r, c.g, c.b, 127};
-  windowManager.fillRect(x + 2, y + 2, width, height, cTransparent);
+  windowManager.fillRect(x, y, width, height, cTransparent);
 }
 
 void View::drawDice(const Color &c, int value) {
@@ -235,11 +235,6 @@ void View::drawDice(const Color &c, int value) {
     exit(0); // error, TODO: clean later
   auto [x, y] = colorToDiceOffsets.at(colorToChar(c));
   int xCenter{x * TS}, yCenter{y * TS};
-  // TODO: should probably just draw a square around,
-  // optimization to be performed later
-  // windowManager.fillRect(xCenter-TS/4,yCenter-TS/4, TS/2, TS/2,
-  // Color::BLACK); windowManager.fillRect(xCenter-TS/4+1,yCenter-TS/4+1,
-  // TS/2-2, TS/2-2, Color::WHITE);
   if (value == 1 || value == 5 || value == 3) {
     windowManager.fillCircle(xCenter, yCenter, 2, Color::BLACK);
   }
@@ -262,6 +257,8 @@ void View::drawDice(const Color &c, int value) {
 }
 
 void View::preparePlayerDice(const Color &c) {
+  // TODO: should probably just draw a square around,
+  // optimization to be performed later
   // not DRY ... I don't care.
   auto [x, y] = colorToDiceOffsets.at(colorToChar(c));
   int xCenter{x * TS}, yCenter{y * TS};

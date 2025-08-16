@@ -67,7 +67,7 @@ public:
   void drawConfigBase();
   void drawDice(const Color& c, int value);
   void preparePlayerDice(const Color& c);
-  void highLightPosition(int x, int y, const Color& c, int width=TS-2, int height=TS-2);
+  void highLightPosition(int x, int y, const Color& c, int width=TS, int height=TS);
 
 private:
   bool drawStar(int x, int y, int side, const Color &c) const;
