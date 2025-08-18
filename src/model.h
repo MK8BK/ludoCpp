@@ -51,6 +51,7 @@ public:
   constexpr bool isFinalPosition() const;
   static BoardPosition fromScreenFloats(float x, float y);
   friend std::ostream& operator<<(std::ostream& os, const BoardPosition& p);
+  bool isProtectedPosition() const;
 
 private:
   static int toPositionId(int x, int y); // from x, y offsets
@@ -109,18 +110,23 @@ public:
 
 private:
   View view;
-  Dice dice;
-  std::vector<Player> players;
   std::unordered_map<int,std::vector<Piece>> playerIdToPieces;
+  std::vector<Player> players;
+  std::vector<Piece> hightLightedPieces;
+  Dice dice;
   Phase phase;
   int currentPlayer;
+  int repetitionCounter;
   bool currentPlayerPlayed;
   bool currentPlayerRolled;
   bool canAdvance;
-  std::vector<Piece> hightLightedPieces;
   void drawPieces();
   void setUpPieces();
   void arrangePiecesAtPosition(std::vector<Piece>& pieces);
+  void handleMouseEvent();
+  void handleSpaceKeyDown();
+  void capture(Piece& p);
+  void renderFor(int milliseconds);
 };
 } // namespace gamespace
 #endif

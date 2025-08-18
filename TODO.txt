@@ -1,0 +1,3 @@
+play audio
+standardize ways of selecting next player
+config screen

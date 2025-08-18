@@ -78,4 +78,16 @@ public:
 };
 } // namespace gamespace
 
+class AudioManager{
+  public:
+  AudioManager();
+  ~AudioManager();
+  private:
+  Uint8** diceRollAudio;
+  Uint32* diceRollAudioLength;
+  SDL_AudioSpec *diceRollAudiospec;
+  SDL_AudioDeviceID deviceId;
+
+};
+
 #endif

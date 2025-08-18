@@ -1,16 +1,20 @@
 #include <array>
+#include <chrono>
 #include <iostream>
 
 #include <SDL3/SDL_events.h>
 #include <string>
+#include <chrono>
+#include <unistd.h>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "SDL3/SDL_error.h"
 #include "SDL3/SDL_keycode.h"
-#include "SDL3/SDL_oldnames.h"
 #include "commons.h"
 #include "model.h"
 
+using namespace std::literals;
 using namespace gamespace;
 
 // IDK WHY, but this requires the gamespace namespace prefix, otherwise not
@@ -129,9 +133,10 @@ void Piece::advance(int diceValue) {
 const Player Piece::defaultPlayer(Player::PlayerType::ROBOT,
                                   Player::PlayerColor::RED);
 Game::Game()
-    : view(), dice(), players(0), playerIdToPieces(), phase(Phase::CONFIG),
-      currentPlayer(0), currentPlayerPlayed(false), currentPlayerRolled(false),
-      canAdvance(false), hightLightedPieces(0){
+    : view(), playerIdToPieces(), players(0), hightLightedPieces(0), dice(),
+      phase(Phase::CONFIG), currentPlayer(0), repetitionCounter(0),
+      currentPlayerPlayed(false), currentPlayerRolled(false),
+      canAdvance(false) {
   // change later to use the config phase, for now assume 4 players
   // --------------------------------------------------------------
   players.push_back(
@@ -273,10 +278,48 @@ Color gamespace::toPhysicalColor(const Player::PlayerColor &c) {
  * At most 4 pieces can be displayed on one tile
  */
 void Game::arrangePiecesAtPosition(std::vector<Piece> &pieces) {
+  size_t n{pieces.size()};
+  if (n < 1)
+    std::cerr << "Goofy error" << std::endl, exit(0);
   BoardPosition &position = pieces[0].pos;
   auto [x, y] = position.toXYOffset();
+
+  if (n <= 4) {
+    view.drawPiece(x * TS + TS / 4, y * TS + TS / 4,
+                   toPhysicalColor(pieces[0].getColor()));
+    if (n >= 2)
+      view.drawPiece(x * TS + 3 * TS / 4, y * TS + TS / 4,
+                     toPhysicalColor(pieces[1].getColor()));
+    if (n >= 3)
+      view.drawPiece(x * TS + TS / 4, y * TS + 3 * TS / 4,
+                     toPhysicalColor(pieces[2].getColor()));
+    if (n >= 4)
+      view.drawPiece(x * TS + 3 * TS / 4, y * TS + 3 * TS / 4,
+                     toPhysicalColor(pieces[3].getColor()));
+    return;
+  }
+
+  // at most 4 pieces are shown
+  Piece *piecesSample[4];
+  for (int i = 0; i < 4; i++)
+    piecesSample[i] = nullptr;
+  int counter{0};
+  counter = 0;
+  std::unordered_set<Player::PlayerColor> seenColors;
+  for (Piece &piece : pieces) {
+    if (seenColors.contains(piece.getColor()))
+      continue;
+    seenColors.insert(piece.getColor());
+    piecesSample[counter++] = &piece;
+  }
   view.drawPiece(x * TS + TS / 4, y * TS + TS / 4,
-                 toPhysicalColor(pieces[0].getColor()));
+                 toPhysicalColor(piecesSample[0]->getColor()));
+  view.drawPiece(x * TS + 3 * TS / 4, y * TS + TS / 4,
+                 toPhysicalColor(piecesSample[1]->getColor()));
+  view.drawPiece(x * TS + TS / 4, y * TS + 3 * TS / 4,
+                 toPhysicalColor(piecesSample[2]->getColor()));
+  view.drawPiece(x * TS + 3 * TS / 4, y * TS + 3 * TS / 4,
+                 toPhysicalColor(piecesSample[3]->getColor()));
 }
 
 void Game::drawPieces() {
@@ -342,47 +385,127 @@ constexpr bool gamespace::operator==(const BoardPosition &a,
   return a.pos == b.pos;
 }
 
+void Game::handleMouseEvent() {
+  if (currentPlayerPlayed || !currentPlayerRolled)
+    return;
+  float x, y;
+  if (!SDL_GetMouseState(&x, &y)) {
+    (std::cerr << "Could not read mouse state [" << SDL_GetError() << "]")
+        .flush();
+    return;
+  }
+  x /= TS;
+  y /= TS;
+  const BoardPosition clickedPosition = BoardPosition::fromScreenFloats(x, y);
+  std::vector<Piece> &playerPieces = playerIdToPieces.at(currentPlayer);
+  Piece *pieceToMove{nullptr};
+  for (Piece &p : playerPieces)
+    if (p.pos == clickedPosition) {
+      pieceToMove = &p;
+      break;
+    }
+  if (pieceToMove == nullptr || !pieceToMove->canAdvance(dice.value)) {
+    (std::cerr << "No movable piece at clicked position").flush();
+    return;
+  }
+
+  pieceToMove->advance(dice.value);
+
+  bool captured{false};
+  if(!pieceToMove->pos.isProtectedPosition()){
+    std::vector<Piece*> capturedPieces;
+    capturedPieces.reserve(16);
+    for (auto &[id, pieces] : playerIdToPieces) {
+      for (Piece &p : pieces){
+        if(p.pos!=pieceToMove->pos || p.getColor()==pieceToMove->getColor()) continue;
+        capturedPieces.push_back(&p);
+        captured = true;
+      }
+    }
+    for(Piece* capturedPiece : capturedPieces){
+      capture(*capturedPiece);
+    }
+  }
+
+  if ((dice.value != 6 && !captured ) || repetitionCounter >= 3)
+    currentPlayer = (currentPlayer + 1) % 4, repetitionCounter = 0;
+  currentPlayerPlayed = currentPlayerRolled = false;
+}
+
+bool BoardPosition::isProtectedPosition() const{
+  const static std::unordered_set<int> protectedPieces{0, 47, 39, 34, 8, 13, 26, 21};
+  return protectedPieces.contains(pos);
+}
+
+void Game::capture(Piece& p){
+  const static int redHomePositions[4] {76, 77, 78, 79};
+  const static int greenHomePositions[4] {80, 81, 82, 83};
+  const static int yellowHomePositions[4] {84, 85, 86, 87};
+  const static int blueHomePositions[4] {88, 89, 90, 91};
+  const int* homePositions;
+  Player::PlayerColor color = p.getColor();
+  if(color==Player::PlayerColor::RED) homePositions=redHomePositions;
+  else if(color==Player::PlayerColor::GREEN) homePositions=greenHomePositions;
+  else if(color==Player::PlayerColor::BLUE) homePositions=blueHomePositions;
+  else if(color==Player::PlayerColor::YELLOW) homePositions=yellowHomePositions;
+  else{
+    (std::cerr << "Invalid piece color detected during capture" << std::endl).flush();
+    return;
+  }
+  std::unordered_map<int, std::vector<Piece>> positionToPieces(5);
+  for (const Piece& p : playerIdToPieces.at(p.getColor())) {
+    if(positionToPieces.contains(p.pos.pos)) positionToPieces.at(p.pos.pos).push_back(p);
+    else positionToPieces[p.pos.pos] = {p};
+  }
+  int position;
+  for(int i=0; i<4; i++){
+    position = homePositions[i];
+    if(positionToPieces.contains(position)) continue;
+    p.pos = BoardPosition(position);
+    return;
+  }
+  // crashes if reaches this point without returning
+  (std::cerr << "Could not return piece to home position" << std::endl).flush();
+  exit(0);
+}
+
+void Game::handleSpaceKeyDown() {
+  if (currentPlayerRolled)
+    return;
+  dice.roll();
+  repetitionCounter++;
+  currentPlayerRolled = true;
+  hightLightedPieces.clear();
+  canAdvance = false;
+  for (const Piece &p : playerIdToPieces.at(currentPlayer)) {
+    if (p.canAdvance(dice.value)) {
+      hightLightedPieces.push_back(p);
+      canAdvance = true;
+    }
+  }
+  renderFor(750);
+  if (!canAdvance && (dice.value != 6 || repetitionCounter >= 3)) {
+    repetitionCounter = 0;
+    currentPlayer = (currentPlayer + 1) % 4;
+    currentPlayerPlayed = currentPlayerRolled = false;
+  }
+}
+
+void Game::renderFor(int milliseconds){
+  std::chrono::time_point start = std::chrono::system_clock::now();
+  while(true){
+    render();
+    if (std::chrono::system_clock::now() - start > std::chrono::milliseconds(milliseconds)) break;
+  }
+}
+
 void Game::handleEvent(const SDL_Event &event) {
   if (event.type == SDL_EVENT_KEY_DOWN) {
     SDL_Keycode key = event.key.key;
     if (key == SDLK_SPACE && !currentPlayerRolled) {
-      dice.roll();
-      currentPlayerRolled = true;
-      hightLightedPieces.clear();
-      canAdvance = false;
-      for (const Piece &p : playerIdToPieces.at(currentPlayer)) {
-        if (p.canAdvance(dice.value)){
-          hightLightedPieces.push_back(p);
-          canAdvance = true;
-        }
-      }
-    }
-    if(!canAdvance){
-      currentPlayer = (currentPlayer+1)%4;
-      canAdvance = currentPlayerPlayed = currentPlayerRolled = false;
+      handleSpaceKeyDown();
     }
   } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-    if (currentPlayerPlayed || !currentPlayerRolled)
-      return;
-    float x, y;
-    if (!SDL_GetMouseState(&x, &y)) {
-      (std::cerr << "Could not read mouse state [" << SDL_GetError() << "]")
-          .flush();
-      return;
-    }
-    x /= TS;
-    y /= TS;
-    const BoardPosition clickedPosition = BoardPosition::fromScreenFloats(x, y);
-    std::vector<Piece> &playerPieces = playerIdToPieces.at(currentPlayer);
-    for (Piece &p : playerPieces) {
-      if (p.pos == clickedPosition) {
-        if (!p.canAdvance(dice.value))
-          continue;
-        p.advance(dice.value);
-        currentPlayer = (currentPlayer + 1) % 4;
-        currentPlayerPlayed = currentPlayerRolled = false;
-        break;
-      }
-    }
+    handleMouseEvent();
   }
 }

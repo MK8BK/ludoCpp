@@ -8,6 +8,8 @@
 #include <SDL3_image/SDL_image.h>
 #include <vector>
 
+#include "SDL3/SDL_audio.h"
+#include "SDL3/SDL_oldnames.h"
 #include "commons.h"
 #include "view.h"
 
@@ -159,7 +161,7 @@ bool WindowManager::startWindow() {
     return false;
   }
 
-  if(!SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND)){
+  if (!SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND)) {
     std::cerr << "SDL renderer blend mode error [" << SDL_GetError() << "]\n";
     std::cerr.flush();
     return false;
@@ -362,17 +364,22 @@ void View::drawBoard() {
   windowManager.fillCircle(11 * TS, 4 * TS, TS / 2, Color::YELLOW);
   windowManager.fillCircle(13 * TS, 2 * TS, TS / 2, Color::YELLOW);
 
-  for(auto [_, pair] : colorToDiceOffsets)
-    windowManager.fillRect(pair.first*TS-TS/4, pair.second*TS-TS/4, TS/2,
-    TS/2, Color::BLACK);
+  for (auto [_, pair] : colorToDiceOffsets)
+    windowManager.fillRect(pair.first * TS - TS / 4, pair.second * TS - TS / 4,
+                           TS / 2, TS / 2, Color::BLACK);
 }
 
-static constexpr const Color& toDark(const Color& c){
-  if(c==Color::GREEN) return Color::DARK_GREEN;
-  if(c==Color::RED) return Color::DARK_RED;
-  if(c==Color::BLUE) return Color::DARK_BLUE;
-  if(c==Color::YELLOW) return Color::DARK_YELLOW;
-  else return Color::BLACK;
+static constexpr const Color &toDark(const Color &c) {
+  if (c == Color::GREEN)
+    return Color::DARK_GREEN;
+  if (c == Color::RED)
+    return Color::DARK_RED;
+  if (c == Color::BLUE)
+    return Color::DARK_BLUE;
+  if (c == Color::YELLOW)
+    return Color::DARK_YELLOW;
+  else
+    return Color::BLACK;
 }
 
 void View::drawPiece(int x, int y, const Color &c, int radius) {
@@ -411,3 +418,25 @@ bool WindowManager::drawTriangle(int x1, int y1, int x2, int y2, int x3, int y3,
 }
 
 void View::render() { windowManager.render(); }
+
+AudioManager::AudioManager()
+    : diceRollAudio(nullptr), diceRollAudioLength(nullptr),
+      diceRollAudiospec(nullptr), deviceId(0){
+  if (!SDL_LoadWAV(DICE_ROLL_AUDIO_PATH, diceRollAudiospec, diceRollAudio,
+                   diceRollAudioLength)) {
+    std::cerr << "Could not load audio file " << DICE_ROLL_AUDIO_PATH << " ["
+              << SDL_GetError() << "]" << std::endl;
+    exit(0);
+  }
+  deviceId = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, diceRollAudiospec);
+  if(deviceId==0){
+    std::cerr << "Could not open default audio device " << SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK << " ["
+              << SDL_GetError() << "]" << std::endl;
+    exit(0);
+  }
+}
+
+AudioManager::~AudioManager(){
+  SDL_CloseAudioDevice(deviceId);
+  SDL_free(diceRollAudio);
+}
