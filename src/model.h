@@ -18,21 +18,26 @@ class Player {
    */
 public:
   enum PlayerType { HUMAN, ROBOT };
-  enum PlayerColor { RED=0, GREEN=1, YELLOW=2, BLUE=3}; // order of play on the board
+  enum PlayerColor {
+    RED = 0,
+    GREEN = 1,
+    YELLOW = 2,
+    BLUE = 3
+  }; // order of play on the board
   PlayerType type;
   PlayerColor color; // used as an id field
-  const std::array<int, 4>& getJailPositions() const;
+  const std::array<int, 4> &getJailPositions() const;
   // just used to satisfy defaultConstructible in 0 length
   // std::vector::constructor--(4)
   Player(PlayerType type = ROBOT, PlayerColor color = RED)
       : type(type), color(color) {}
   ~Player() = default;
-  friend std::ostream& operator<<(std::ostream& os, const Player& p);
+  friend std::ostream &operator<<(std::ostream &os, const Player &p);
 };
 
-Color toPhysicalColor(const Player::PlayerColor& c);
-std::ostream& operator<<(std::ostream& os, const Player::PlayerColor& c);
-std::ostream& operator<<(std::ostream& os, const Player::PlayerType& t);
+Color toPhysicalColor(const Player::PlayerColor &c);
+std::ostream &operator<<(std::ostream &os, const Player::PlayerColor &c);
+std::ostream &operator<<(std::ostream &os, const Player::PlayerType &t);
 
 class BoardPosition {
   /**
@@ -43,22 +48,22 @@ public:
   int pos;
   static int getNext(int pos, const Player::PlayerColor &color);
   BoardPosition(int position = 0);
-  constexpr bool  isInitialPosition() const;
+  constexpr bool isInitialPosition() const;
   static int defaultPosition(const Player::PlayerColor &color);
   static std::pair<int, int> toXYOffset(int pos);
   std::pair<int, int> toXYOffset() const;
   static constexpr bool isFinalPosition(int position);
   constexpr bool isFinalPosition() const;
   static BoardPosition fromScreenFloats(float x, float y);
-  friend std::ostream& operator<<(std::ostream& os, const BoardPosition& p);
+  friend std::ostream &operator<<(std::ostream &os, const BoardPosition &p);
   bool isProtectedPosition() const;
 
 private:
-  static int toPositionId(int x, int y); // from x, y offsets
+  static int toPositionId(int x, int y);         // from x, y offsets
   static BoardPosition toPosition(int x, int y); // from x, y offsets
 };
 
-constexpr bool operator==(const BoardPosition& a, const BoardPosition& b);
+constexpr bool operator==(const BoardPosition &a, const BoardPosition &b);
 
 class Piece {
   /**
@@ -72,19 +77,19 @@ public:
   BoardPosition pos;
   bool canAdvance(int diceValue) const;
   void advance(int diceValue);
-  Player::PlayerColor getColor() const{return _player.color;};
+  Player::PlayerColor getColor() const { return _player.color; };
   /**
    * @brief TODO: set position later depending on other similar colored pieces
    * @param p
    */
   // just used to satisfy defaultConstructible in 0 length
   // std::vector::constructor--(4)
-  Piece(const Player &player = defaultPlayer, 
-    const BoardPosition& position=BoardPosition(0)):_player(player), pos(position){}
+  Piece(const Player &player = defaultPlayer,
+        const BoardPosition &position = BoardPosition(0))
+      : _player(player), pos(position) {}
   static const Player defaultPlayer;
-  friend std::ostream& operator<<(std::ostream& os, Piece const& p);
+  friend std::ostream &operator<<(std::ostream &os, Piece const &p);
 };
-
 
 class Dice {
 public:
@@ -96,7 +101,7 @@ private:
 
 public:
   int value;
-  Dice() : rd(), dist(1, 6), value(6){} // TODO: change to -1 later
+  Dice() : rd(), dist(1, 6), value(6) {} // TODO: change to -1 later
   ~Dice() = default;
 };
 
@@ -110,7 +115,8 @@ public:
 
 private:
   View view;
-  std::unordered_map<int,std::vector<Piece>> playerIdToPieces;
+  AudioManager audioManager;
+  std::unordered_map<int, std::vector<Piece>> playerIdToPieces;
   std::vector<Player> players;
   std::vector<Piece> hightLightedPieces;
   Dice dice;
@@ -122,10 +128,10 @@ private:
   bool canAdvance;
   void drawPieces();
   void setUpPieces();
-  void arrangePiecesAtPosition(std::vector<Piece>& pieces);
+  void arrangePiecesAtPosition(std::vector<Piece> &pieces);
   void handleMouseEvent();
   void handleSpaceKeyDown();
-  void capture(Piece& p);
+  void capture(Piece &p);
   void renderFor(int milliseconds);
 };
 } // namespace gamespace

@@ -1,28 +1,29 @@
 #ifndef VIEW_H
 #define VIEW_H
 
-#include <string>
-#include <unordered_map>
 #include "commons.h"
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_video.h>
+#include <string>
+#include <vector>
+#include <unordered_map>
 
 namespace gamespace {
 
 class Color {
 public:
   const int r, g, b, a;
-  const static Color RED, GREEN, BLUE, YELLOW, WHITE, BLACK,
-  DARK_RED, DARK_GREEN, DARK_BLUE, DARK_YELLOW;
+  const static Color RED, GREEN, BLUE, YELLOW, WHITE, BLACK, DARK_RED,
+      DARK_GREEN, DARK_BLUE, DARK_YELLOW;
   // opaque by default
   Color(int red, int green, int blue, int alpha = 255)
       : r(red), g(green), b(blue), a(alpha) {}
   ~Color() {}
 };
 
-std::ostream& operator<<(std::ostream& os, const Color& c);
-constexpr bool operator==(const Color& c1, const Color& c2);
+std::ostream &operator<<(std::ostream &os, const Color &c);
+constexpr bool operator==(const Color &c1, const Color &c2);
 
 class WindowManager {
 public:
@@ -36,6 +37,8 @@ public:
   void render() const;
   bool drawPoint(int x, int y, const Color &c) const;
   bool fillCircle(int x, int y, int r, const Color &c) const;
+  std::pair<int, int> getWidthAndHeight() const;
+
 private:
   std::unordered_map<std::string, SDL_Texture *> textures;
   SDL_Window *window;
@@ -60,14 +63,17 @@ class View {
 
 private:
   WindowManager windowManager;
+
 public:
   void render();
+  void updateWindowDimensions();
   void drawBoard();
-  void drawPiece(int x, int y, const Color& c, int radius=TS/8);
+  void drawPiece(int x, int y, const Color &c, int radius = TS / 8);
   void drawConfigBase();
-  void drawDice(const Color& c, int value);
-  void preparePlayerDice(const Color& c);
-  void highLightPosition(int x, int y, const Color& c, int width=TS, int height=TS);
+  void drawDice(const Color &c, int value);
+  void preparePlayerDice(const Color &c);
+  void highLightPosition(int x, int y, const Color &c, int width = TS,
+                         int height = TS);
 
 private:
   bool drawStar(int x, int y, int side, const Color &c) const;
@@ -78,16 +84,17 @@ public:
 };
 } // namespace gamespace
 
-class AudioManager{
-  public:
+class AudioManager {
+public:
   AudioManager();
   ~AudioManager();
-  private:
-  Uint8** diceRollAudio;
-  Uint32* diceRollAudioLength;
-  SDL_AudioSpec *diceRollAudiospec;
-  SDL_AudioDeviceID deviceId;
-
+  void playDiceRoll() const;
+private:
+  static std::vector<const char *> audioPaths;
+  std::vector<SDL_AudioSpec> audioSpecs;
+  std::vector<Uint8 *> audios;
+  std::vector<Uint32> wav_data_len;
+  SDL_AudioStream *stream;
 };
 
 #endif

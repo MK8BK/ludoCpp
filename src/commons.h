@@ -1,14 +1,14 @@
 #ifndef COMMONS_H
 #define COMMONS_H
-namespace gamespace{
+namespace gamespace {
+void syncSizes(int w, int h);
 
 // width and height at the same time
-static const int WINDOW_SIZE{810}; // is divisible by 15 ... :) 
-static const int TS{WINDOW_SIZE/15};
-static const int TSmall{TS-2};
+extern int WINDOW_SIZE; // is divisible by 15 ... :)
+extern int TS;
+extern int TSmall;
+
 static const int NUM_POSITIONS{92};
-static const char* DICE_ROLL_AUDIO_PATH{"diceRoll.wav"};
 
-
-} 
+} // namespace gamespace
 #endif

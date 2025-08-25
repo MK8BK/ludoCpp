@@ -6,10 +6,11 @@
 #include <SDL3/SDL_rect.h>
 #include <SDL3/SDL_render.h>
 #include <SDL3_image/SDL_image.h>
-#include <vector>
+#include <array>
 
 #include "SDL3/SDL_audio.h"
 #include "SDL3/SDL_oldnames.h"
+#include "SDL3/SDL_video.h"
 #include "commons.h"
 #include "view.h"
 
@@ -163,6 +164,12 @@ bool WindowManager::startWindow() {
 
   if (!SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND)) {
     std::cerr << "SDL renderer blend mode error [" << SDL_GetError() << "]\n";
+    std::cerr.flush();
+    return false;
+  }
+  if (!SDL_SetWindowResizable(window, true)) {
+    std::cerr << "SDL could not set resizable window [" << SDL_GetError()
+              << "]\n";
     std::cerr.flush();
     return false;
   }
@@ -417,26 +424,64 @@ bool WindowManager::drawTriangle(int x1, int y1, int x2, int y2, int x3, int y3,
   return true;
 }
 
+void View::updateWindowDimensions() {
+  auto [w, h] = windowManager.getWidthAndHeight();
+  syncSizes(w, h);
+}
 void View::render() { windowManager.render(); }
 
-AudioManager::AudioManager()
-    : diceRollAudio(nullptr), diceRollAudioLength(nullptr),
-      diceRollAudiospec(nullptr), deviceId(0){
-  if (!SDL_LoadWAV(DICE_ROLL_AUDIO_PATH, diceRollAudiospec, diceRollAudio,
-                   diceRollAudioLength)) {
-    std::cerr << "Could not load audio file " << DICE_ROLL_AUDIO_PATH << " ["
-              << SDL_GetError() << "]" << std::endl;
-    exit(0);
+std::pair<int, int> WindowManager::getWidthAndHeight() const {
+  static int w, h;
+  if (!SDL_GetWindowSize(window, &w, &h)) {
+    std::cerr << "Could not get window size [" << SDL_GetError() << ']'
+              << std::endl;
+    exit(1);
   }
-  deviceId = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, diceRollAudiospec);
-  if(deviceId==0){
-    std::cerr << "Could not open default audio device " << SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK << " ["
-              << SDL_GetError() << "]" << std::endl;
-    exit(0);
-  }
+  return {w, h};
 }
 
-AudioManager::~AudioManager(){
-  SDL_CloseAudioDevice(deviceId);
-  SDL_free(diceRollAudio);
+std::vector<const char *> AudioManager::audioPaths = {"diceRoll.wav"};
+
+static bool audioSpecsAreEqual(SDL_AudioSpec *s1, SDL_AudioSpec *s2){
+  return s1->channels==s2->channels && s1->freq==s2->freq && s1->format==s2->format;
+}
+
+
+AudioManager::AudioManager()
+    :  audioSpecs(audioPaths.size()), audios(audioPaths.size()), wav_data_len(audioPaths.size()), stream(nullptr) {
+  // not using SDL_Mixer because i'm a chad 
+  // also i'm not adding another dependency, go back to node
+  for(size_t i=0; i<audioPaths.size(); i++){
+    // SDL_AudioSpec s;
+    if (!SDL_LoadWAV(audioPaths.at(i), &audioSpecs.at(i), &audios.at(i), &wav_data_len.at(i))){
+      std::cout << __FILE__ << ":" << __LINE__ << std::endl;
+      std::cerr << "Could not load wav file " << audioPaths.at(i) << ", " << SDL_GetError() <<  std::endl;
+      return;
+    }
+    // all audio files must have the same audio specification ... sorry not sorry
+    // TODO: generalize later
+    if(i!=0 && !audioSpecsAreEqual(&audioSpecs.at(i),&audioSpecs.at(i-1))){
+      std::cerr << "Files have different audio specifications " << audioPaths.at(i) << " " << audioPaths.at(i-1) << std::endl;
+      return;
+    }
+  }
+  audioSpecs.erase(audioSpecs.begin()+1, audioSpecs.end()); 
+  audioSpecs.shrink_to_fit();
+  stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audioSpecs.at(0), NULL, NULL);
+  if(stream==nullptr){
+      std::cerr << "Could not open audio device and stream " << SDL_GetError() <<  std::endl;
+      return;
+  }
+  SDL_ResumeAudioStreamDevice(stream);
+  // glad it's over now
+}
+
+void AudioManager::playDiceRoll() const {
+  if (SDL_GetAudioStreamQueued(stream) < (int)wav_data_len.at(0)) 
+    SDL_PutAudioStreamData(stream, audios.at(0), wav_data_len.at(0));
+}
+
+AudioManager::~AudioManager() {
+  for(Uint8* audio: audios)
+    if(audio!=nullptr) SDL_free(audio);
 }

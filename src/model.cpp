@@ -3,8 +3,10 @@
 #include <iostream>
 
 #include <SDL3/SDL_events.h>
-#include <string>
 #include <chrono>
+#include <limits>
+#include <string>
+#include <thread>
 #include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -13,6 +15,7 @@
 #include "SDL3/SDL_keycode.h"
 #include "commons.h"
 #include "model.h"
+#include "view.h"
 
 using namespace std::literals;
 using namespace gamespace;
@@ -133,10 +136,10 @@ void Piece::advance(int diceValue) {
 const Player Piece::defaultPlayer(Player::PlayerType::ROBOT,
                                   Player::PlayerColor::RED);
 Game::Game()
-    : view(), playerIdToPieces(), players(0), hightLightedPieces(0), dice(),
-      phase(Phase::CONFIG), currentPlayer(0), repetitionCounter(0),
-      currentPlayerPlayed(false), currentPlayerRolled(false),
-      canAdvance(false) {
+    : view(), audioManager(), playerIdToPieces(), players(0),
+      hightLightedPieces(0), dice(), phase(Phase::CONFIG), currentPlayer(0),
+      repetitionCounter(0), currentPlayerPlayed(false),
+      currentPlayerRolled(false), canAdvance(false) {
   // change later to use the config phase, for now assume 4 players
   // --------------------------------------------------------------
   players.push_back(
@@ -358,6 +361,7 @@ BoardPosition BoardPosition::fromScreenFloats(float x, float y) {
 }
 
 void Game::render() {
+  view.updateWindowDimensions();
   if (phase == Phase::PLAY) {
     view.drawBoard();
     drawPieces();
@@ -412,55 +416,66 @@ void Game::handleMouseEvent() {
   pieceToMove->advance(dice.value);
 
   bool captured{false};
-  if(!pieceToMove->pos.isProtectedPosition()){
-    std::vector<Piece*> capturedPieces;
+  if (!pieceToMove->pos.isProtectedPosition()) {
+    std::vector<Piece *> capturedPieces;
     capturedPieces.reserve(16);
     for (auto &[id, pieces] : playerIdToPieces) {
-      for (Piece &p : pieces){
-        if(p.pos!=pieceToMove->pos || p.getColor()==pieceToMove->getColor()) continue;
+      for (Piece &p : pieces) {
+        if (p.pos != pieceToMove->pos ||
+            p.getColor() == pieceToMove->getColor())
+          continue;
         capturedPieces.push_back(&p);
         captured = true;
       }
     }
-    for(Piece* capturedPiece : capturedPieces){
+    for (Piece *capturedPiece : capturedPieces) {
       capture(*capturedPiece);
     }
   }
 
-  if ((dice.value != 6 && !captured ) || repetitionCounter >= 3)
+  if ((dice.value != 6 && !captured) || repetitionCounter >= 3)
     currentPlayer = (currentPlayer + 1) % 4, repetitionCounter = 0;
   currentPlayerPlayed = currentPlayerRolled = false;
 }
 
-bool BoardPosition::isProtectedPosition() const{
-  const static std::unordered_set<int> protectedPieces{0, 47, 39, 34, 8, 13, 26, 21};
+bool BoardPosition::isProtectedPosition() const {
+  const static std::unordered_set<int> protectedPieces{0, 47, 39, 34,
+                                                       8, 13, 26, 21};
   return protectedPieces.contains(pos);
 }
 
-void Game::capture(Piece& p){
-  const static int redHomePositions[4] {76, 77, 78, 79};
-  const static int greenHomePositions[4] {80, 81, 82, 83};
-  const static int yellowHomePositions[4] {84, 85, 86, 87};
-  const static int blueHomePositions[4] {88, 89, 90, 91};
-  const int* homePositions;
+void Game::capture(Piece &p) {
+  const static int redHomePositions[4]{76, 77, 78, 79};
+  const static int greenHomePositions[4]{80, 81, 82, 83};
+  const static int yellowHomePositions[4]{84, 85, 86, 87};
+  const static int blueHomePositions[4]{88, 89, 90, 91};
+  const int *homePositions;
   Player::PlayerColor color = p.getColor();
-  if(color==Player::PlayerColor::RED) homePositions=redHomePositions;
-  else if(color==Player::PlayerColor::GREEN) homePositions=greenHomePositions;
-  else if(color==Player::PlayerColor::BLUE) homePositions=blueHomePositions;
-  else if(color==Player::PlayerColor::YELLOW) homePositions=yellowHomePositions;
-  else{
-    (std::cerr << "Invalid piece color detected during capture" << std::endl).flush();
+  if (color == Player::PlayerColor::RED)
+    homePositions = redHomePositions;
+  else if (color == Player::PlayerColor::GREEN)
+    homePositions = greenHomePositions;
+  else if (color == Player::PlayerColor::BLUE)
+    homePositions = blueHomePositions;
+  else if (color == Player::PlayerColor::YELLOW)
+    homePositions = yellowHomePositions;
+  else {
+    (std::cerr << "Invalid piece color detected during capture" << std::endl)
+        .flush();
     return;
   }
   std::unordered_map<int, std::vector<Piece>> positionToPieces(5);
-  for (const Piece& p : playerIdToPieces.at(p.getColor())) {
-    if(positionToPieces.contains(p.pos.pos)) positionToPieces.at(p.pos.pos).push_back(p);
-    else positionToPieces[p.pos.pos] = {p};
+  for (const Piece &p : playerIdToPieces.at(p.getColor())) {
+    if (positionToPieces.contains(p.pos.pos))
+      positionToPieces.at(p.pos.pos).push_back(p);
+    else
+      positionToPieces[p.pos.pos] = {p};
   }
   int position;
-  for(int i=0; i<4; i++){
+  for (int i = 0; i < 4; i++) {
     position = homePositions[i];
-    if(positionToPieces.contains(position)) continue;
+    if (positionToPieces.contains(position))
+      continue;
     p.pos = BoardPosition(position);
     return;
   }
@@ -468,6 +483,8 @@ void Game::capture(Piece& p){
   (std::cerr << "Could not return piece to home position" << std::endl).flush();
   exit(0);
 }
+
+static int ROLL_TIME{750};
 
 void Game::handleSpaceKeyDown() {
   if (currentPlayerRolled)
@@ -483,7 +500,20 @@ void Game::handleSpaceKeyDown() {
       canAdvance = true;
     }
   }
-  renderFor(750);
+
+  // yes it's inefficient, look idc, this projects is taking too long
+  auto audioCallBack = [this](){audioManager.playDiceRoll();};
+  std::thread audioThread(audioCallBack);
+  renderFor(ROLL_TIME);
+  audioThread.join();
+
+  // flush all events that may have happened during the timeout
+  SDL_PumpEvents(); // dark magic to transfer all os events to the queue
+                    // still no clue how events internally work in SDL,
+                    // life is short
+  SDL_FlushEvents(std::numeric_limits<uint32_t>::min(),
+                  std::numeric_limits<uint32_t>::max());
+
   if (!canAdvance && (dice.value != 6 || repetitionCounter >= 3)) {
     repetitionCounter = 0;
     currentPlayer = (currentPlayer + 1) % 4;
@@ -491,11 +521,13 @@ void Game::handleSpaceKeyDown() {
   }
 }
 
-void Game::renderFor(int milliseconds){
+void Game::renderFor(int milliseconds) {
   std::chrono::time_point start = std::chrono::system_clock::now();
-  while(true){
+  while (true) {
     render();
-    if (std::chrono::system_clock::now() - start > std::chrono::milliseconds(milliseconds)) break;
+    if (std::chrono::system_clock::now() - start >
+        std::chrono::milliseconds(milliseconds))
+      break;
   }
 }
 
