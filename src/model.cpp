@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include "SDL3/SDL_error.h"
 #include "SDL3/SDL_keycode.h"
@@ -43,8 +44,6 @@ std::ostream &gamespace::operator<<(std::ostream &os,
   os << "PlayerType{";
   if (t == Player::PlayerType::HUMAN)
     os << "HUMAN";
-  if (t == Player::PlayerType::ROBOT)
-    os << "ROBOT";
   return os << '}';
 }
 std::ostream &gamespace::operator<<(std::ostream &os, const BoardPosition &p) {
@@ -132,27 +131,16 @@ void Piece::advance(int diceValue) {
   while (diceValue--)
     pos.pos = BoardPosition::getNext(pos.pos, _player.color);
 }
-
-const Player Piece::defaultPlayer(Player::PlayerType::ROBOT,
+const Player Piece::defaultPlayer(Player::PlayerType::HUMAN,
                                   Player::PlayerColor::RED);
 Game::Game()
-    : view(), audioManager(), playerIdToPieces(), players(0),
-      hightLightedPieces(0), dice(), phase(Phase::CONFIG), currentPlayer(0),
-      repetitionCounter(0), currentPlayerPlayed(false),
-      currentPlayerRolled(false), canAdvance(false) {
-  // change later to use the config phase, for now assume 4 players
-  // --------------------------------------------------------------
-  players.push_back(
-      Player(Player::PlayerType::HUMAN, Player::PlayerColor::RED));
-  players.push_back(
-      Player(Player::PlayerType::HUMAN, Player::PlayerColor::GREEN));
-  players.push_back(
-      Player(Player::PlayerType::HUMAN, Player::PlayerColor::YELLOW));
-  players.push_back(
-      Player(Player::PlayerType::HUMAN, Player::PlayerColor::BLUE));
-  phase = Phase::PLAY;
-  // --------------------------------------------------------------
-  setUpPieces();
+    : phase(Phase::CONFIG), view(), audioManager(),
+      playerIdToPieces(), players(0), hightLightedPieces(0), dice(),
+      playerConfigs(), currentPlayer(0), repetitionCounter(0),
+      currentPlayerPlayed(false), currentPlayerRolled(false), canAdvance(false) {
+
+  for (int i = 0; i < 4; i++)
+    playerConfigs[i] = Player::PlayerConfig::CONFIG_NO_PLAY;
 }
 
 const std::array<int, 4> &Player::getJailPositions() const {
@@ -380,6 +368,26 @@ void Game::render() {
         }
       }
     }
+  } else if (phase == Phase::CONFIG) {
+    static const std::unordered_map<Player::PlayerColor,
+                                    std::pair<float, float>>
+        colorToQuarterOffsets{{Player::PlayerColor::BLUE, {10.75, 10.75}},
+                              {Player::PlayerColor::GREEN, {3.25, 3.25}},
+                              {Player::PlayerColor::RED, {3.25, 10.75}},
+                              {Player::PlayerColor::YELLOW, {10.75, 3.25}}};
+    view.drawConfigScreen();
+    Player::PlayerConfig config;
+    Player::PlayerColor color;
+    for (int i = 0; i < 4; i++) {
+      color = (Player::PlayerColor)i;
+      auto [x, y] = colorToQuarterOffsets.at(color);
+      config = playerConfigs[i];
+      if (config == Player::PlayerConfig::CONFIG_NO_PLAY) {
+        view.drawConfigNoPlayer(x * TS, y * TS);
+      } else if (config == Player::PlayerConfig::CONFIG_HUMAN) {
+        view.drawConfigHumanPlayer(x * TS, y * TS);
+      }
+    }
   }
   view.render();
 }
@@ -389,7 +397,7 @@ constexpr bool gamespace::operator==(const BoardPosition &a,
   return a.pos == b.pos;
 }
 
-void Game::handleMouseEvent() {
+void Game::handlePlayMouseEvent() {
   if (currentPlayerPlayed || !currentPlayerRolled)
     return;
   float x, y;
@@ -401,7 +409,8 @@ void Game::handleMouseEvent() {
   x /= TS;
   y /= TS;
   const BoardPosition clickedPosition = BoardPosition::fromScreenFloats(x, y);
-  std::vector<Piece> &playerPieces = playerIdToPieces.at(currentPlayer);
+  std::vector<Piece> &playerPieces =
+      playerIdToPieces.at(players.at(currentPlayer).color);
   Piece *pieceToMove{nullptr};
   for (Piece &p : playerPieces)
     if (p.pos == clickedPosition) {
@@ -433,9 +442,14 @@ void Game::handleMouseEvent() {
     }
   }
 
-  if ((dice.value != 6 && !captured) || repetitionCounter >= 3)
-    currentPlayer = (currentPlayer + 1) % 4, repetitionCounter = 0;
+  if ((dice.value != 6 && !captured) || repetitionCounter >= 3) {
+    currentPlayer = nextPlayer(currentPlayer), repetitionCounter = 0;
+  }
   currentPlayerPlayed = currentPlayerRolled = false;
+}
+
+int Game::nextPlayer(int currentPlayer) const {
+  return (currentPlayer + 1) % players.size();
 }
 
 bool BoardPosition::isProtectedPosition() const {
@@ -486,7 +500,7 @@ void Game::capture(Piece &p) {
 
 static int ROLL_TIME{750};
 
-void Game::handleSpaceKeyDown() {
+void Game::handlePlaySpaceKeyDown() {
   if (currentPlayerRolled)
     return;
   dice.roll();
@@ -494,15 +508,17 @@ void Game::handleSpaceKeyDown() {
   currentPlayerRolled = true;
   hightLightedPieces.clear();
   canAdvance = false;
-  for (const Piece &p : playerIdToPieces.at(currentPlayer)) {
+  const std::vector<Piece> &pieces =
+      playerIdToPieces.at(players.at(currentPlayer).color);
+  for (const Piece &p : pieces) {
     if (p.canAdvance(dice.value)) {
       hightLightedPieces.push_back(p);
       canAdvance = true;
     }
   }
-
   // yes it's inefficient, look idc, this projects is taking too long
-  auto audioCallBack = [this](){audioManager.playDiceRoll();};
+  // also i need to read C++ Concurrency in Action ... URGENTLY
+  auto audioCallBack = [this]() { audioManager.playDiceRoll(); };
   std::thread audioThread(audioCallBack);
   renderFor(ROLL_TIME);
   audioThread.join();
@@ -516,7 +532,7 @@ void Game::handleSpaceKeyDown() {
 
   if (!canAdvance && (dice.value != 6 || repetitionCounter >= 3)) {
     repetitionCounter = 0;
-    currentPlayer = (currentPlayer + 1) % 4;
+    currentPlayer = nextPlayer(currentPlayer);
     currentPlayerPlayed = currentPlayerRolled = false;
   }
 }
@@ -531,13 +547,130 @@ void Game::renderFor(int milliseconds) {
   }
 }
 
-void Game::handleEvent(const SDL_Event &event) {
-  if (event.type == SDL_EVENT_KEY_DOWN) {
-    SDL_Keycode key = event.key.key;
-    if (key == SDLK_SPACE && !currentPlayerRolled) {
-      handleSpaceKeyDown();
-    }
-  } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-    handleMouseEvent();
+void Game::handleConfigMouseEvent() {
+  static auto next = [](Player::PlayerConfig config) {
+    if (config == Player::PlayerConfig::CONFIG_NO_PLAY)
+      return Player::PlayerConfig::CONFIG_HUMAN;
+    else 
+      return Player::PlayerConfig::CONFIG_NO_PLAY;
+  };
+  float x, y;
+  if (!SDL_GetMouseState(&x, &y)) {
+    (std::cerr << "Could not read mouse state [" << SDL_GetError() << "]")
+        .flush();
+    return;
   }
+  int playerConfigIndex;
+  x /= TS;
+  y /= TS;
+  if (x < 7.5 && y < 7.5)
+    playerConfigIndex = Player::PlayerColor::GREEN;
+  else if (x < 7.5 && y >= 5.5)
+    playerConfigIndex = Player::PlayerColor::RED;
+  else if (x >= 7.5 && y >= 7.5)
+    playerConfigIndex = Player::PlayerColor::BLUE;
+  else if (x >= 7.5 && y < 7.5)
+    playerConfigIndex = Player::PlayerColor::YELLOW;
+  else {
+    std::cerr << "Unreachable reached." << std::endl;
+    return;
+  }
+  // logically, playerConfigIndex is set no matter what by now
+  playerConfigs[playerConfigIndex] = next(playerConfigs[playerConfigIndex]);
+}
+
+void Game::handleEvent(const SDL_Event &event) {
+  if (phase == Phase::PLAY) {
+    if (event.type == SDL_EVENT_KEY_DOWN) {
+      SDL_Keycode key = event.key.key;
+      if (key == SDLK_SPACE && !currentPlayerRolled)
+        handlePlaySpaceKeyDown();
+    } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+      handlePlayMouseEvent();
+    }
+  } else if (phase == Phase::CONFIG) {
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+      handleConfigMouseEvent();
+    else if (event.type == SDL_EVENT_KEY_DOWN) {
+      SDL_Keycode key = event.key.key;
+      if (key == SDLK_RETURN && isValidConfiguration()) {
+        handleConfigEnterKey();
+      }
+    }
+  }
+}
+
+void Game::rollAndPlay(){
+    dice.roll();
+    repetitionCounter++;
+    currentPlayerRolled = true;
+    hightLightedPieces.clear();
+    canAdvance = false;
+    const std::vector<Piece> &pieces =
+        playerIdToPieces.at(players.at(currentPlayer).color);
+    for (const Piece &p : pieces) {
+      if (p.canAdvance(dice.value)) {
+        hightLightedPieces.push_back(p);
+        canAdvance = true;
+      }
+    }
+    auto audioCallBack = [this]() { audioManager.playDiceRoll(); };
+    std::thread audioThread(audioCallBack);
+    renderFor(ROLL_TIME);
+    audioThread.join();
+    if (!canAdvance && (dice.value != 6 || repetitionCounter >= 3)) {
+      repetitionCounter = 0;
+      currentPlayer = nextPlayer(currentPlayer);
+      currentPlayerPlayed = currentPlayerRolled = false;
+    }
+    if (canAdvance) {
+      Piece *pieceToMove = &hightLightedPieces[0];
+      pieceToMove->advance(dice.value);
+      bool captured{false};
+      if (!pieceToMove->pos.isProtectedPosition()) {
+        std::vector<Piece *> capturedPieces;
+        capturedPieces.reserve(16);
+        for (auto &[id, pieces] : playerIdToPieces) {
+          for (Piece &p : pieces) {
+            if (p.pos != pieceToMove->pos ||
+                p.getColor() == pieceToMove->getColor())
+              continue;
+            capturedPieces.push_back(&p);
+            captured = true;
+          }
+        }
+        for (Piece *capturedPiece : capturedPieces) {
+          capture(*capturedPiece);
+        }
+      }
+      if ((dice.value != 6 && !captured) || repetitionCounter >= 3) {
+        currentPlayer = nextPlayer(currentPlayer), repetitionCounter = 0;
+      }
+      currentPlayerPlayed = currentPlayerRolled = false;
+    }
+
+}
+
+
+void Game::handleConfigEnterKey() {
+  players.reserve(4);
+  Player::PlayerConfig config;
+  for (int i = 0; i < 4; i++) {
+    config = playerConfigs[i];
+    if (config == Player::PlayerConfig::CONFIG_HUMAN) {
+      players.push_back(
+          Player(Player::PlayerType::HUMAN, (Player::PlayerColor)i));
+    }
+  }
+  currentPlayer = players[0].color;
+  setUpPieces();
+  phase = Phase::PLAY;
+}
+
+bool Game::isValidConfiguration() const {
+  int r{0};
+  for (Player::PlayerConfig config : playerConfigs)
+    if (config != Player::PlayerConfig::CONFIG_NO_PLAY)
+      r++;
+  return r > 1;
 }

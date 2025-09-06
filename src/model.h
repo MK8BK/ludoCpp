@@ -11,13 +11,17 @@ namespace gamespace {
 
 class BoardPosition;
 
+
 class Player {
   /**
    * @brief Player representation class ... done
    *
    */
 public:
-  enum PlayerType { HUMAN, ROBOT };
+  enum PlayerConfig{
+    CONFIG_NO_PLAY=0, CONFIG_HUMAN=1
+  };
+  enum PlayerType { HUMAN=0 }; // tried to add bot but gave up
   enum PlayerColor {
     RED = 0,
     GREEN = 1,
@@ -29,11 +33,16 @@ public:
   const std::array<int, 4> &getJailPositions() const;
   // just used to satisfy defaultConstructible in 0 length
   // std::vector::constructor--(4)
-  Player(PlayerType type = ROBOT, PlayerColor color = RED)
+  Player(PlayerType type = HUMAN, PlayerColor color = RED)
       : type(type), color(color) {}
   ~Player() = default;
   friend std::ostream &operator<<(std::ostream &os, const Player &p);
 };
+
+// somehow g++ needs all these friend forward declarations, but clang++ does not ... smh
+std::ostream &operator<<(std::ostream &os, Piece const &p);
+std::ostream &operator<<(std::ostream &os, const BoardPosition &p);
+std::ostream &operator<<(std::ostream &os, const Player &p);
 
 Color toPhysicalColor(const Player::PlayerColor &c);
 std::ostream &operator<<(std::ostream &os, const Player::PlayerColor &c);
@@ -106,21 +115,23 @@ public:
 };
 
 class Game {
-  enum Phase { CONFIG, PLAY };
 
 public:
   void render();
   void handleEvent(const SDL_Event &event);
   Game();
+  enum Phase { CONFIG, PLAY };
+  Phase phase;
 
 private:
   View view;
   AudioManager audioManager;
+  // the player id is a player color
   std::unordered_map<int, std::vector<Piece>> playerIdToPieces;
   std::vector<Player> players;
   std::vector<Piece> hightLightedPieces;
   Dice dice;
-  Phase phase;
+  Player::PlayerConfig playerConfigs[4];
   int currentPlayer;
   int repetitionCounter;
   bool currentPlayerPlayed;
@@ -129,10 +140,15 @@ private:
   void drawPieces();
   void setUpPieces();
   void arrangePiecesAtPosition(std::vector<Piece> &pieces);
-  void handleMouseEvent();
-  void handleSpaceKeyDown();
+  void handlePlayMouseEvent();
+  void handleConfigMouseEvent();
+  void handlePlaySpaceKeyDown();
   void capture(Piece &p);
   void renderFor(int milliseconds);
+  bool isValidConfiguration() const;
+  void handleConfigEnterKey();
+  int nextPlayer(int currentPlayer) const;
+  void rollAndPlay();
 };
 } // namespace gamespace
 #endif

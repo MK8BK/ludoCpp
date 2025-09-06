@@ -36,7 +36,7 @@ public:
   bool fillBackground(const Color &c) const;
   void render() const;
   bool drawPoint(int x, int y, const Color &c) const;
-  bool fillCircle(int x, int y, int r, const Color &c) const;
+  bool fillDisk(int x, int y, int r, const Color &c) const;
   std::pair<int, int> getWidthAndHeight() const;
 
 private:
@@ -74,6 +74,10 @@ public:
   void preparePlayerDice(const Color &c);
   void highLightPosition(int x, int y, const Color &c, int width = TS,
                          int height = TS);
+  void drawConfigScreen();
+  void drawConfigNoPlayer(int x, int y, int h=TS, int w=TS);
+  void drawConfigHumanPlayer(int x, int y, int h=TS, int w=TS);
+
 
 private:
   bool drawStar(int x, int y, int side, const Color &c) const;
@@ -96,5 +100,8 @@ private:
   std::vector<Uint32> wav_data_len;
   SDL_AudioStream *stream;
 };
+
+extern const char * CROSSED_CIRCLE_PATH;
+extern const char * HUMAN_LOGO_PATH;
 
 #endif

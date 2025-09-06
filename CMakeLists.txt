@@ -24,11 +24,15 @@ set(SOURCES src/main.cpp src/controller.cpp
 add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
 
+
 # Create your game executable target as usual
 add_executable(ludo ${SOURCES})
 
+# yea I need to profile this shit
+target_compile_options(ludo PRIVATE -Wextra -pedantic -O0 -Werror -Wall)
+# target_compile_options(ludo PRIVATE -O3)
+
 # Link to the actual SDL3 library.
 target_link_libraries(ludo PRIVATE SDL3_image::SDL3_image SDL3::SDL3)
-target_compile_options(ludo PRIVATE -Werror -Wall
-  -Wextra -pedantic -g -O0 # -O3
-)
+
+

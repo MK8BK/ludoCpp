@@ -9,7 +9,6 @@
 #include <array>
 
 #include "SDL3/SDL_audio.h"
-#include "SDL3/SDL_oldnames.h"
 #include "SDL3/SDL_video.h"
 #include "commons.h"
 #include "view.h"
@@ -188,21 +187,29 @@ View::View() : windowManager() {
   windowManager.startWindow();
   if (!windowManager.isReady())
     (std::cerr << "Can't draw, exiting\n").flush();
-  // windowManager.loadTexture("star.png");
+  windowManager.loadTexture(CROSSED_CIRCLE_PATH);
+  windowManager.loadTexture(HUMAN_LOGO_PATH);
 }
+
+const char* CROSSED_CIRCLE_PATH{ "crossedCircle.png"};
+const char* HUMAN_LOGO_PATH{"humanLogo.png"};
 
 View::~View() {}
 
-bool WindowManager::fillCircle(int x, int y, int r, const Color &c) const {
+bool WindowManager::fillDisk(int x, int y, int r, const Color &c) const {
   int xMax{x + r}, xMin{x - r}, yMax{y + r}, yMin{y - r};
   bool result{true};
   double distance;
+  double xD, yD;
+  double r2{((double)r)*r};
   setDrawColor(c);
   for (int x1 = xMin; x1 < xMax; x1++) {
     for (int y1 = yMin; y1 < yMax; y1++) {
-      distance = std::sqrt(std::pow(x1 - x, 2) + std::pow(y1 - y, 2));
-      if (distance < r)
-        result &= SDL_RenderPoint(renderer, x1, y1);
+      xD = x1-x; xD *= xD;
+      yD = y1-y; yD *=yD;
+      distance = xD+yD;
+      if (distance <= r2) [[likely]]
+        result = result && SDL_RenderPoint(renderer, x1, y1);
     }
   }
   if (!result)
@@ -245,22 +252,22 @@ void View::drawDice(const Color &c, int value) {
   auto [x, y] = colorToDiceOffsets.at(colorToChar(c));
   int xCenter{x * TS}, yCenter{y * TS};
   if (value == 1 || value == 5 || value == 3) {
-    windowManager.fillCircle(xCenter, yCenter, 2, Color::BLACK);
+    windowManager.fillDisk(xCenter, yCenter, 2, Color::BLACK);
   }
   if (value == 2 || value == 6) {
-    windowManager.fillCircle(xCenter - TS / 8, yCenter, 2, Color::BLACK);
-    windowManager.fillCircle(xCenter + TS / 8, yCenter, 2, Color::BLACK);
+    windowManager.fillDisk(xCenter - TS / 8, yCenter, 2, Color::BLACK);
+    windowManager.fillDisk(xCenter + TS / 8, yCenter, 2, Color::BLACK);
   }
   if (value >= 3) {
-    windowManager.fillCircle(xCenter - TS / 8, yCenter + TS / 8, 2,
+    windowManager.fillDisk(xCenter - TS / 8, yCenter + TS / 8, 2,
                              Color::BLACK);
-    windowManager.fillCircle(xCenter + TS / 8, yCenter - TS / 8, 2,
+    windowManager.fillDisk(xCenter + TS / 8, yCenter - TS / 8, 2,
                              Color::BLACK);
   }
   if (value >= 4) {
-    windowManager.fillCircle(xCenter + TS / 8, yCenter + TS / 8, 2,
+    windowManager.fillDisk(xCenter + TS / 8, yCenter + TS / 8, 2,
                              Color::BLACK);
-    windowManager.fillCircle(xCenter - TS / 8, yCenter - TS / 8, 2,
+    windowManager.fillDisk(xCenter - TS / 8, yCenter - TS / 8, 2,
                              Color::BLACK);
   }
 }
@@ -351,25 +358,25 @@ void View::drawBoard() {
   }
 
   // initial position circles
-  windowManager.fillCircle(2 * TS, 2 * TS, TS / 2, Color::GREEN);
-  windowManager.fillCircle(4 * TS, 4 * TS, TS / 2, Color::GREEN);
-  windowManager.fillCircle(2 * TS, 4 * TS, TS / 2, Color::GREEN);
-  windowManager.fillCircle(4 * TS, 2 * TS, TS / 2, Color::GREEN);
+  windowManager.fillDisk(2 * TS, 2 * TS, TS / 2, Color::GREEN);
+  windowManager.fillDisk(4 * TS, 4 * TS, TS / 2, Color::GREEN);
+  windowManager.fillDisk(2 * TS, 4 * TS, TS / 2, Color::GREEN);
+  windowManager.fillDisk(4 * TS, 2 * TS, TS / 2, Color::GREEN);
 
-  windowManager.fillCircle(11 * TS, 11 * TS, TS / 2, Color::BLUE);
-  windowManager.fillCircle(13 * TS, 13 * TS, TS / 2, Color::BLUE);
-  windowManager.fillCircle(11 * TS, 13 * TS, TS / 2, Color::BLUE);
-  windowManager.fillCircle(13 * TS, 11 * TS, TS / 2, Color::BLUE);
+  windowManager.fillDisk(11 * TS, 11 * TS, TS / 2, Color::BLUE);
+  windowManager.fillDisk(13 * TS, 13 * TS, TS / 2, Color::BLUE);
+  windowManager.fillDisk(11 * TS, 13 * TS, TS / 2, Color::BLUE);
+  windowManager.fillDisk(13 * TS, 11 * TS, TS / 2, Color::BLUE);
 
-  windowManager.fillCircle(2 * TS, 11 * TS, TS / 2, Color::RED);
-  windowManager.fillCircle(4 * TS, 13 * TS, TS / 2, Color::RED);
-  windowManager.fillCircle(2 * TS, 13 * TS, TS / 2, Color::RED);
-  windowManager.fillCircle(4 * TS, 11 * TS, TS / 2, Color::RED);
+  windowManager.fillDisk(2 * TS, 11 * TS, TS / 2, Color::RED);
+  windowManager.fillDisk(4 * TS, 13 * TS, TS / 2, Color::RED);
+  windowManager.fillDisk(2 * TS, 13 * TS, TS / 2, Color::RED);
+  windowManager.fillDisk(4 * TS, 11 * TS, TS / 2, Color::RED);
 
-  windowManager.fillCircle(11 * TS, 2 * TS, TS / 2, Color::YELLOW);
-  windowManager.fillCircle(13 * TS, 4 * TS, TS / 2, Color::YELLOW);
-  windowManager.fillCircle(11 * TS, 4 * TS, TS / 2, Color::YELLOW);
-  windowManager.fillCircle(13 * TS, 2 * TS, TS / 2, Color::YELLOW);
+  windowManager.fillDisk(11 * TS, 2 * TS, TS / 2, Color::YELLOW);
+  windowManager.fillDisk(13 * TS, 4 * TS, TS / 2, Color::YELLOW);
+  windowManager.fillDisk(11 * TS, 4 * TS, TS / 2, Color::YELLOW);
+  windowManager.fillDisk(13 * TS, 2 * TS, TS / 2, Color::YELLOW);
 
   for (auto [_, pair] : colorToDiceOffsets)
     windowManager.fillRect(pair.first * TS - TS / 4, pair.second * TS - TS / 4,
@@ -390,8 +397,8 @@ static constexpr const Color &toDark(const Color &c) {
 }
 
 void View::drawPiece(int x, int y, const Color &c, int radius) {
-  windowManager.fillCircle(x, y, radius, Color::BLACK);
-  windowManager.fillCircle(x, y, radius - 2, toDark(c));
+  windowManager.fillDisk(x, y, radius, Color::BLACK);
+  windowManager.fillDisk(x, y, radius - 2, toDark(c));
 }
 
 // thanks to this reply
@@ -476,7 +483,27 @@ AudioManager::AudioManager()
   // glad it's over now
 }
 
+void View::drawConfigNoPlayer(int x, int y, int h, int w){
+  SDL_FRect rect{(float)x,(float)y,(float)h,(float)w};
+  windowManager.drawTexture(CROSSED_CIRCLE_PATH,&rect); 
+}
+
+void View::drawConfigHumanPlayer(int x, int y, int h, int w){
+  SDL_FRect rect{(float)x,(float)y,(float)h,(float)w};
+  windowManager.drawTexture(HUMAN_LOGO_PATH,&rect); 
+}
+
+
+void View::drawConfigScreen(){
+  windowManager.fillBackground(Color::WHITE);
+  windowManager.fillRect(0, 0, (7.5*TS), (7.5*TS), Color::GREEN);
+  windowManager.fillRect((7.5*TS), 0, (7.5*TS), (7.5*TS), Color::YELLOW);
+  windowManager.fillRect(0, (7.5*TS), (7.5*TS), (7.5*TS), Color::RED);
+  windowManager.fillRect((7.5*TS), (7.5*TS), (7.5*TS), (7.5*TS), Color::BLUE);
+}
+
 void AudioManager::playDiceRoll() const {
+  // somehow this works
   if (SDL_GetAudioStreamQueued(stream) < (int)wav_data_len.at(0)) 
     SDL_PutAudioStreamData(stream, audios.at(0), wav_data_len.at(0));
 }
