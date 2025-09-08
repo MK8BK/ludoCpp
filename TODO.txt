@@ -1,3 +1,1 @@
-play audio
-standardize ways of selecting next player
-config screen
+solve problem with selecting last line piece with dice value greater than possible advancement
