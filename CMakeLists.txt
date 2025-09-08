@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.31)
+cmake_minimum_required(VERSION 3.20)
 project(LudoCpp VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -29,10 +29,9 @@ add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
 add_executable(ludo ${SOURCES})
 
 # yea I need to profile this shit
-target_compile_options(ludo PRIVATE -Wextra -pedantic -O0 -Werror -Wall)
-# target_compile_options(ludo PRIVATE -O3)
+# target_compile_options(ludo PRIVATE -Wextra -pedantic -O0 -Werror -Wall)
+target_compile_options(ludo PRIVATE -O3)
 
 # Link to the actual SDL3 library.
 target_link_libraries(ludo PRIVATE SDL3_image::SDL3_image SDL3::SDL3)
-
 
