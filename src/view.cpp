@@ -160,6 +160,11 @@ bool WindowManager::startWindow() {
     std::cerr.flush();
     return false;
   }
+  if(!SDL_SetRenderVSync(renderer, 1)){
+    std::cerr << "SDL renderer vsync error[" << SDL_GetError() << "]\n";
+    std::cerr.flush();
+    return false;
+  }
 
   if (!SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND)) {
     std::cerr << "SDL renderer blend mode error [" << SDL_GetError() << "]\n";
